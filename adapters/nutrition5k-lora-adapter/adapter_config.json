@@ -1,0 +1,26 @@
+{
+  "peft_type": "LORA",
+  "auto_mapping": null,
+  "base_model_name_or_path": "Qwen/Qwen3-VL-4B-Instruct",
+  "revision": null,
+  "task_type": "CAUSAL_LM",
+  "inference_mode": true,
+  "r": 8,
+  "lora_alpha": 16,
+  "lora_dropout": 0.05,
+  "fan_in_fan_out": false,
+  "bias": "none",
+  "target_modules": [
+    "q_proj",
+    "k_proj",
+    "v_proj",
+    "o_proj",
+    "gate_proj",
+    "up_proj",
+    "down_proj"
+  ],
+  "modules_to_save": null,
+  "init_lora_weights": true,
+  "use_rslora": false,
+  "use_dora": false
+}

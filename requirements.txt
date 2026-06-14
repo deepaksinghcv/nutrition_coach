@@ -1,0 +1,14 @@
+torch
+torchvision
+transformers>=4.51
+datasets
+peft
+accelerate
+trl
+safetensors
+bitsandbytes        # GPU/CUDA only — used for 4-bit training (skip on Mac)
+pillow
+pandas
+numpy
+huggingface_hub
+hf_transfer         # faster Hub downloads

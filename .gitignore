@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Virtual env
+.venv/
+venv/
+
+# Large artifacts — not tracked in git (see README for how to obtain/reproduce)
+data/
+*_checkpoints/
+
+# Adapters: track the small (~33MB) extracted LoRA adapters, but never the
+# 3.7GB full-model saves (those use the name model.safetensors).
+adapters/**/model.safetensors
+
+# Notebook scratch
+notebooks/scratch/
+
+# OS
+.DS_Store
+
+# Credentials
+kaggle.json
+*.token

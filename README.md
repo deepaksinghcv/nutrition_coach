@@ -20,10 +20,14 @@ drives results:
 | Carbs    | 14.5 g | 17.9 g | **8.0 g** |
 | Fat      | 6.0 g | 9.3 g | **5.3 g** |
 
+![MAE comparison](assets/mae_comparison.png)
+
 Nutrition5k wins across the board. Notably **Food101 fine-tuning is worse than
 no fine-tuning** — training on fabricated class-average labels teaches confident
 wrong mappings (e.g. it predicted "grilled salmon" for 8 unrelated dishes
 spanning 21–1116 kcal). Real measured data is what produces genuine estimation.
+
+Regenerate the chart with `python -m src.plot_results`.
 
 ## Model output format
 
@@ -49,6 +53,8 @@ src/
   infer.py           single-image inference (base or adapter)
   extract_adapter.py salvage a clean adapter from a full model save
   download_holdout.py fetch clean holdout dishes via gsutil
+  plot_results.py    render the MAE comparison chart
+assets/              mae_comparison.png
 requirements.txt
 ```
 

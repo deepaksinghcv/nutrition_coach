@@ -10,5 +10,6 @@ bitsandbytes        # GPU/CUDA only — used for 4-bit training (skip on Mac)
 pillow
 pandas
 numpy
+matplotlib         # results plot
 huggingface_hub
 hf_transfer         # faster Hub downloads

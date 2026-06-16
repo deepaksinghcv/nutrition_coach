@@ -28,3 +28,6 @@ kaggle.json
 # Vercel deploy scratch
 .deploy/
 .vercel/
+
+# Local resume context (not shared)
+CLAUDE.md

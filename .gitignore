@@ -24,3 +24,7 @@ notebooks/scratch/
 # Credentials
 kaggle.json
 *.token
+
+# Vercel deploy scratch
+.deploy/
+.vercel/

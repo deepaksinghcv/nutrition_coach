@@ -3,6 +3,8 @@
 Fine-tuning **Qwen3-VL-4B-Instruct** to estimate calories and macros from a food
 photo, returning structured JSON.
 
+📊 **[Live results deck →](https://nutrition-coach-vlm.vercel.app)** · run locally with `open presentation.html`
+
 The core experiment compares two fine-tuning datasets to show how label quality
 drives results:
 

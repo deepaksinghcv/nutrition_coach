@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nutrition Coach — Calorie-Counter VLM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ===========================================
+   THEME — "Instrument" (dark measurement tool)
+   Edit these variables to restyle the whole deck.
+   =========================================== */
+:root{
+  --bg:#0a0c10; --panel:#0f1218; --panel2:#11151c; --line:#1d2230;
+  --txt:#eef2f0; --dim:#7f8a98; --accent:#caff3f; --accent2:#5bd6ff;
+  --warn:#ff8a5b;
+  --font-display:'Bricolage Grotesque',sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+  --ease:cubic-bezier(.16,1,.3,1);
+  --stage-bg:#06070a; --slide-bg:#0a0c10;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+
+/* ===========================================
+   FIXED 16:9 STAGE — mandatory base (viewport-base.css)
+   =========================================== */
+html,body{width:100%;height:100%;margin:0;overflow:hidden;background:var(--stage-bg);}
+.deck-viewport{position:fixed;inset:0;overflow:hidden;background:var(--stage-bg);}
+.deck-stage{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;
+  transform-origin:0 0;background:var(--slide-bg);}
+.slide{position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;display:block;
+  visibility:hidden;opacity:0;pointer-events:none;background:var(--slide-bg);}
+.slide.active,.slide.visible{visibility:visible;opacity:1;pointer-events:auto;z-index:1;}
+img,video,canvas,svg{max-width:100%;max-height:100%;}
+.deck-controls{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:1000;}
+@media print{
+  html,body{width:1920px;height:auto;overflow:visible;background:#fff;}
+  .deck-viewport{position:static;overflow:visible;background:#fff;}
+  .deck-stage{position:static;width:auto;height:auto;transform:none !important;background:none;}
+  .slide{position:relative;display:block !important;visibility:visible !important;opacity:1 !important;
+    pointer-events:auto !important;width:1920px;height:1080px;break-after:page;page-break-after:always;}
+  .slide:last-child{break-after:auto;page-break-after:auto;}
+  .deck-controls{display:none !important;}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{
+  animation-duration:.01ms !important;transition-duration:.2s !important;}}
+
+/* ===========================================
+   SHARED SLIDE SURFACE
+   =========================================== */
+.slide{font-family:var(--font-mono);color:var(--txt);
+  background:radial-gradient(120% 140% at 82% -12%,#11161f 0%,#0a0c10 56%);}
+/* faint measurement grid behind everything */
+.slide::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:120px 100%;opacity:.45;
+  -webkit-mask:linear-gradient(180deg,transparent,#000 18% 82%,transparent);
+  mask:linear-gradient(180deg,transparent,#000 18% 82%,transparent);}
+
+/* top ruler ticks (decorative motif) */
+.ruler{position:absolute;top:54px;left:120px;right:120px;height:28px;display:flex;
+  justify-content:space-between;align-items:flex-start;z-index:2;}
+.ruler i{width:1.5px;background:var(--dim);height:11px;opacity:.6;}
+.ruler i.major{height:24px;background:var(--accent);opacity:.9;}
+
+/* top chrome: section + slide id */
+.chrome{position:absolute;top:96px;left:120px;right:120px;display:flex;justify-content:space-between;
+  font-size:19px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim);z-index:2;}
+.chrome b{color:var(--accent);font-weight:500;}
+
+/* footer */
+.foot{position:absolute;left:120px;bottom:60px;right:120px;display:flex;justify-content:space-between;
+  font-size:17px;letter-spacing:.14em;color:#566;text-transform:uppercase;z-index:2;}
+
+/* content frame */
+.body{position:absolute;left:120px;right:120px;top:208px;bottom:128px;}
+
+/* kickers + headings */
+.kicker{font-size:22px;letter-spacing:.3em;text-transform:uppercase;color:var(--accent2);
+  display:flex;align-items:center;gap:18px;margin-bottom:30px;}
+.kicker::before{content:"";width:50px;height:2px;background:var(--accent2);}
+h2{font-family:var(--font-display);font-weight:800;font-size:92px;line-height:.98;letter-spacing:-.025em;}
+h2 .hl{color:var(--accent);}
+.lead{font-size:30px;line-height:1.5;color:var(--dim);max-width:1300px;margin-top:34px;}
+.lead b{color:var(--txt);font-weight:500;}
+
+/* ===========================================
+   TITLE SLIDE
+   =========================================== */
+.title-slide .t-kicker{position:absolute;left:120px;top:330px;font-size:23px;letter-spacing:.32em;
+  text-transform:uppercase;color:var(--accent2);display:flex;align-items:center;gap:18px;}
+.title-slide .t-kicker::before{content:"";width:54px;height:2px;background:var(--accent2);}
+.title-slide h1{position:absolute;left:120px;top:378px;font-family:var(--font-display);font-weight:800;
+  font-size:188px;line-height:.84;letter-spacing:-.03em;}
+.title-slide h1 .hl{color:var(--accent);}
+.title-slide .t-sub{position:absolute;left:120px;top:760px;max-width:1000px;font-size:29px;line-height:1.5;
+  color:var(--dim);}
+.title-slide .t-sub b{color:var(--txt);font-weight:500;}
+.readout{position:absolute;right:120px;top:360px;width:470px;background:var(--panel);
+  border:1px solid var(--line);border-radius:14px;padding:36px 40px;
+  box-shadow:0 0 0 1px #000 inset,0 30px 80px rgba(0,0,0,.5);}
+.readout .cap{font-size:17px;color:var(--dim);letter-spacing:.18em;text-transform:uppercase;margin-bottom:14px;}
+.readout .row{display:flex;justify-content:space-between;align-items:baseline;padding:16px 0;
+  border-bottom:1px solid var(--line);}
+.readout .row:last-child{border-bottom:none;}
+.readout .k{font-size:19px;color:var(--dim);letter-spacing:.06em;}
+.readout .v{font-family:var(--font-display);font-weight:700;font-size:40px;}
+.readout .v.best{color:var(--accent);}
+.blink{display:inline-block;width:11px;height:20px;background:var(--accent);margin-left:7px;
+  vertical-align:-2px;animation:blink 1.1s steps(1) infinite;}
+@keyframes blink{50%{opacity:0;}}
+
+/* ===========================================
+   REUSABLE COMPONENTS
+   =========================================== */
+/* two-column */
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:64px;height:100%;align-items:center;}
+.cols.tight{align-items:start;}
+
+/* cards */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:40px 42px;}
+.card .ct{font-family:var(--font-display);font-weight:700;font-size:34px;margin-bottom:18px;}
+.card .cd{font-size:23px;line-height:1.5;color:var(--dim);}
+.card.bad{border-color:#3a2a22;}
+.card.good{border-color:#36431d;}
+.card .badge{display:inline-block;font-size:16px;letter-spacing:.14em;text-transform:uppercase;
+  padding:6px 14px;border-radius:30px;margin-bottom:22px;}
+.badge.b-bad{background:rgba(255,138,91,.12);color:var(--warn);}
+.badge.b-good{background:rgba(202,255,63,.12);color:var(--accent);}
+
+/* bullet list */
+.blist{list-style:none;margin-top:18px;}
+.blist li{display:flex;gap:22px;align-items:flex-start;font-size:30px;line-height:1.45;
+  padding:18px 0;border-bottom:1px solid var(--line);color:var(--txt);}
+.blist li:last-child{border-bottom:none;}
+.blist .n{font-family:var(--font-mono);color:var(--accent);font-size:22px;padding-top:8px;min-width:46px;}
+.blist .sub{display:block;font-size:22px;color:var(--dim);margin-top:6px;}
+
+/* JSON code block */
+.code{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:38px 44px;
+  font-family:var(--font-mono);font-size:30px;line-height:1.7;}
+.code .key{color:var(--accent2);}
+.code .num{color:var(--accent);}
+.code .str{color:#e6d08a;}
+.code .pun{color:var(--dim);}
+
+/* big stat */
+.statgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:40px;}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:40px 38px;text-align:left;}
+.stat .lbl{font-size:19px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);}
+.stat .big{font-family:var(--font-display);font-weight:800;font-size:88px;line-height:1;margin-top:14px;}
+.stat .big.accent{color:var(--accent);}
+.stat .note{font-size:21px;color:var(--dim);margin-top:12px;}
+
+/* results table */
+.rtable{width:100%;border-collapse:collapse;font-size:28px;}
+.rtable th,.rtable td{text-align:right;padding:22px 26px;border-bottom:1px solid var(--line);}
+.rtable th:first-child,.rtable td:first-child{text-align:left;}
+.rtable thead th{font-family:var(--font-mono);font-size:19px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--dim);font-weight:500;}
+.rtable td{font-family:var(--font-display);font-weight:500;}
+.rtable .win{color:var(--accent);font-weight:700;}
+.rtable tbody tr:last-child td{border-bottom:none;}
+.rtable .rowlabel{font-family:var(--font-mono);font-size:22px;color:var(--dim);letter-spacing:.04em;}
+.colwin{background:rgba(202,255,63,.06);}
+
+/* chart frame */
+.chartwrap{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:26px;
+  display:flex;align-items:center;justify-content:center;height:100%;}
+.chartwrap img{border-radius:8px;width:100%;height:auto;object-fit:contain;}
+
+/* pipeline steps */
+.pipe{display:flex;align-items:stretch;gap:24px;margin-top:30px;}
+.pstep{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:34px 30px;position:relative;}
+.pstep .pn{font-family:var(--font-mono);font-size:18px;color:var(--accent);letter-spacing:.12em;}
+.pstep .pt{font-family:var(--font-display);font-weight:700;font-size:30px;margin-top:14px;}
+.pstep .pd{font-size:20px;color:var(--dim);margin-top:12px;line-height:1.4;}
+.pstep .arrow{position:absolute;right:-19px;top:50%;transform:translateY(-50%);color:var(--accent);
+  font-size:30px;z-index:3;}
+.pstep:last-child .arrow{display:none;}
+
+/* quote / punch slide */
+.punch{display:flex;flex-direction:column;justify-content:center;height:100%;}
+.punch .big{font-family:var(--font-display);font-weight:800;font-size:108px;line-height:1.0;letter-spacing:-.02em;
+  max-width:1500px;}
+.punch .big .hl{color:var(--accent);}
+.punch .big .warn{color:var(--warn);}
+.punch .sub{font-size:30px;color:var(--dim);margin-top:40px;max-width:1200px;line-height:1.5;}
+
+/* tech chips */
+.chips{display:flex;flex-wrap:wrap;gap:20px;margin-top:14px;}
+.chip{font-family:var(--font-mono);font-size:26px;padding:18px 30px;border:1px solid var(--line);
+  border-radius:50px;background:var(--panel);color:var(--txt);}
+.chip b{color:var(--accent);font-weight:500;}
+
+/* closing */
+.closing{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;height:100%;}
+.closing h2{font-size:128px;}
+.closing .link{font-family:var(--font-mono);font-size:32px;color:var(--accent);margin-top:40px;
+  display:flex;align-items:center;gap:18px;}
+.closing .link::before{content:"";width:50px;height:2px;background:var(--accent);}
+
+/* ===========================================
+   REVEAL ANIMATION (triggered by .visible)
+   =========================================== */
+.reveal{opacity:0;transform:translateY(28px);
+  transition:opacity .7s var(--ease),transform .7s var(--ease);}
+.slide.visible .reveal{opacity:1;transform:none;}
+.slide.visible .reveal.d1{transition-delay:.08s}
+.slide.visible .reveal.d2{transition-delay:.2s}
+.slide.visible .reveal.d3{transition-delay:.32s}
+.slide.visible .reveal.d4{transition-delay:.44s}
+.slide.visible .reveal.d5{transition-delay:.56s}
+.slide.visible .reveal.d6{transition-delay:.68s}
+
+/* ===========================================
+   CHROME: progress + edit
+   =========================================== */
+.deck-controls{display:flex;gap:18px;align-items:center;font-family:var(--font-mono);
+  font-size:16px;color:var(--dim);letter-spacing:.1em;background:rgba(15,18,24,.8);
+  border:1px solid var(--line);border-radius:40px;padding:10px 20px;backdrop-filter:blur(8px);}
+.deck-controls .bar{width:160px;height:4px;background:var(--line);border-radius:4px;overflow:hidden;}
+.deck-controls .bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .4s var(--ease);}
+.edit-hotzone{position:fixed;top:0;left:0;width:80px;height:80px;z-index:10000;cursor:pointer;}
+.edit-toggle{position:fixed;top:18px;left:18px;z-index:10001;opacity:0;pointer-events:none;
+  transition:opacity .3s ease;background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  font-size:20px;padding:10px 13px;cursor:pointer;}
+.edit-toggle.show,.edit-toggle.active{opacity:1;pointer-events:auto;}
+.edit-toggle.active{border-color:var(--accent);}
+[contenteditable="true"]{outline:2px dashed var(--accent2);outline-offset:6px;border-radius:4px;cursor:text;}
+</style>
+</head>
+<body>
+<div class="deck-viewport">
+<main class="deck-stage" id="deckStage">
+
+  <!-- ============ 01 · TITLE ============ -->
+  <section class="slide title-slide active">
+    <div class="ruler" data-ruler></div>
+    <div class="chrome reveal d1"><span>Vision-Language Model · <b>Qwen3-VL-4B</b></span><span>github.com/deepaksinghcv</span></div>
+    <div class="t-kicker reveal d2">Calorie &amp; Macro Estimation</div>
+    <h1 class="reveal d3">Nutrition<br><span class="hl">Coach</span></h1>
+    <p class="t-sub reveal d4">A QLoRA fine-tune that reads a plate and returns <b>calories &amp; macros</b> as JSON — and a study of why <b>label quality</b>, not model size, won.</p>
+    <div class="readout reveal d5">
+      <div class="cap">Holdout MAE — calories</div>
+      <div class="row"><span class="k">Base</span><span class="v">123.8</span></div>
+      <div class="row"><span class="k">Food101 LoRA</span><span class="v">142.4</span></div>
+      <div class="row"><span class="k">Nutrition5k LoRA</span><span class="v best">81.4<span class="blink"></span></span></div>
+    </div>
+    <div class="foot reveal d6"><span>Technical deep-dive</span><span>PyTorch · PEFT · TRL</span></div>
+  </section>
+
+  <!-- ============ 02 · PROBLEM ============ -->
+  <section class="slide">
+    <div class="ruler" data-ruler></div>
+    <div class="chrome"><span>01 — The Problem</span><span><b>·</b></span></div>
+    <div class="body">
+      <div class="kicker reveal d1">Why this is hard</div>
+      <h2 class="reveal d2">A photo hides<br>most of the <span class="hl">calories</span>.</h2>
+      <p class="lead reveal d3">From a single overhead image, a model must infer <b>portion size, density, oil, and hidden ingredients</b> — signals that aren't fully visible. The goal: turn one plate photo into reliable, structured nutrition.</p>
+    </div>
+    <div class="foot"><span>Nutrition Coach</span><span>02</span></div>
+  </section>
+
+  <!-- ============ 03 · THE OUTPUT ============ -->
+  <section class="slide">
+    <div class="ruler" data-ruler></div>
+    <div class="chrome"><span>01 — The Problem</span><span>Structured output</span></div>
+    <div class="body">
+      <div class="cols tight" style="align-items:center;">
+        <div>
+          <div class="kicker reveal d1">What the model returns</div>
+          <h2 class="reveal d2">One image in,<br><span class="hl">JSON</span> out.</h2>
+          <p class="lead reveal d3">Every prediction is a fixed schema — directly usable by an app. <b>100% valid-JSON</b> on the held-out set.</p>
+        </div>
+        <div class="code reveal d4">
+<span class="pun">{</span><br>
+&nbsp;&nbsp;<span class="key">"food_name"</span><span class="pun">:</span> <span class="str">"dish"</span><span class="pun">,</span><br>
+&nbsp;&nbsp;<span class="key">"serving_description"</span><span class="pun">:</span> <span class="str">"371g serving"</span><span class="pun">,</span><br>
+&nbsp;&nbsp;<span class="key">"calories"</span><span class="pun">:</span> <span class="num">430.0</span><span class="pun">,</span><br>
+&nbsp;&nbsp;<span class="key">"protein_g"</span><span class="pun">:</span> <span class="num">30.0</span><span class="pun">,</span><br>
+&nbsp;&nbsp;<span class="key">"carbs_g"</span><span class="pun">:</span> <span class="num">40.0</span><span class="pun">,</span><br>
+&nbsp;&nbsp;<span class="key">"fat_g"</span><span class="pun">:</span> <span class="num">20.0</span><br>
+<span class="pun">}</span>
+        </div>
+      </div>
+    </div>
+    <div class="foot"><span>Nutrition Coach</span><span>03</span></div>
+  </section>
+
+  <!-- ============ 04 · CORE QUESTION ============ -->
+  <section class="slide">
+    <div class="ruler" data-ruler></div>
+    <div class="chrome"><span>02 — The Experiment</span><span>Hypothesis</span></div>
+    <div class="body">
+      <div class="punch">
+        <div class="big reveal d1">Same model.<br>Two datasets.<br><span class="hl">Which labels win?</span></div>
+        <div class="sub reveal d3">Fine-tune Qwen3-VL-4B twice with identical QLoRA settings — once on <b>Food101</b> (synthetic class-average nutrition) and once on <b>Nutrition5k</b> (real lab-measured values) — then test both on the same unseen plates.</div>
+      </div>
+    </div>
+    <div class="foot"><span>Nutrition Coach</span><span>04</span></div>
+  </section>
+
+  <!-- ============ 05 · THE DATASETS ============ -->
+  <section class="slide">
+    <div class="ruler" data-ruler></div>
+    <div class="chrome"><span>02 — The Experiment</span><span>Data sources</span></div>
+    <div class="body">
+      <div class="kicker reveal d1">The contrast that drives everything</div>
+      <div class="cols" style="margin-top:30px;height:auto;">
+        <div class="card bad reveal d2">
+          <span class="badge b-bad">Food101</span>
+          <div class="ct">Synthetic labels</div>
+          <div class="cd">101 food classes, but <b style="color:var(--txt)">no real nutrition</b>. Each class is mapped to one USDA-style <b style="color:var(--txt)">average</b> tuple — the same numbers for every photo of that class.</div>
+        </div>
+        <div class="card good reveal d3">
+          <span class="badge b-good">Nutrition5k</span>
+          <div class="ct">Measured labels</div>
+          <div class="cd">Real <b style="color:var(--txt)">lab-measured</b> calories &amp; macros per dish (Google). Each image carries its <b style="color:var(--txt)">actual</b> portion's values — variance and all.</div>
+        </div>
+      </div>
+      <p class="lead reveal d4" style="margin-top:38px;">347 training images each · clean 28-dish Nutrition5k holdout for scoring.</p>
+    </div>
+    <div class="foot"><span>Nutrition Coach</span><span>05</span></div>
+  </section>
+
+  <!-- ============ 06 · PIPELINE ============ -->
+  <section class="slide">
+    <div class="ruler" data-ruler></div>
+    <div class="chrome"><span>02 — The Experiment</span><span>Pipeline</span></div>
+    <div class="body">
+      <div class="kicker reveal d1">End to end</div>
+      <h2 class="reveal d2">From plates to <span class="hl">benchmarks</span>.</h2>
+      <div class="pipe">
+        <div class="pstep reveal d3"><div class="pn">01</div><div class="pt">Data prep</div><div class="pd">Build (image, prompt, JSON) triplets for both datasets</div><span class="arrow">→</span></div>
+        <div class="pstep reveal d4"><div class="pn">02</div><div class="pt">QLoRA train</div><div class="pd">4-bit Qwen3-VL-4B + LoRA on a Kaggle T4 GPU</div><span class="arrow">→</span></div>
+        <div class="pstep reveal d5"><div class="pn">03</div><div class="pt">Evaluate</div><div class="pd">3-way comparison on the held-out dishes</div><span class="arrow">→</span></div>
+        <div class="pstep reveal d6"><div class="pn">04</div><div class="pt">Infer</div><div class="pd">Adapter runs locally on Apple Silicon (MPS)</div></div>
+      </div>
+    </div>
+    <div class="foot"><span>Nutrition Coach</span><span>06</span></div>
+  </section>
+
+  <!-- ============ 07 · TRAINING SIGNAL ============ -->
+  <section class="slide">
+    <div class="ruler" data-ruler></div>
+    <div class="chrome"><span>03 — Results</span><span>Training loss</span></div>
+    <div class="body">
+      <div class="kicker reveal d1">A tale told by the loss curve</div>
+      <h2 class="reveal d2">Low loss isn't<br>always <span class="hl">learning</span>.</h2>
+      <div class="statgrid reveal d3" style="margin-top:46px;">
+        <div class="stat">
+          <div class="lbl">Food101 — final loss</div>
+          <div class="big">0.04</div>
+          <div class="note">Memorizing a 101-class lookup table</div>
+        </div>
+        <div class="stat">
+          <div class="lbl">Nutrition5k — final loss</div>
+          <div class="big accent">0.41</div>
+          <div class="note">Plateaus at the real information floor</div>
+        </div>
+        <div class="stat">
+          <div class="lbl">Interpretation</div>
+          <div class="big" style="font-size:54px;line-height:1.05;">Honest&nbsp;&gt;<br>Pretty</div>
+          <div class="note">A flat plateau = genuine estimation</div>
+        </div>
+      </div>
+    </div>
+    <div class="foot"><span>Nutrition Coach</span><span>07</span></div>
+  </section>
+
+  <!-- ============ 08 · RESULTS CHART ============ -->
+  <section class="slide">
+    <div class="ruler" data-ruler></div>
+    <div class="chrome"><span>03 — Results</span><span>Holdout MAE</span></div>
+    <div class="body">
+      <div class="cols" style="grid-template-columns:1.35fr 1fr;gap:56px;">
+        <div class="chartwrap reveal d2"><img src="assets/mae_comparison.png" alt="Per-nutrient MAE comparison across base, Food101, and Nutrition5k"></div>
+        <div style="align-self:center;">
+          <div class="kicker reveal d1">28-dish clean holdout</div>
+          <h2 class="reveal d2" style="font-size:74px;">Nutrition5k<br><span class="hl">wins every<br>nutrient.</span></h2>
+          <p class="lead reveal d4" style="font-size:27px;margin-top:30px;">Lower bars are better. The green-outlined model — trained on real measured data — has the lowest error on calories, protein, carbs, and fat.</p>
+        </div>
+      </div>
+    </div>
+    <div class="foot"><span>Nutrition Coach</span><span>08</span></div>
+  </section>
+
+  <!-- ============ 09 · RESULTS TABLE ============ -->
+  <section class="slide">
+    <div class="ruler" data-ruler></div>
+    <div class="chrome"><span>03 — Results</span><span>The numbers</span></div>
+    <div class="body">
+      <div class="kicker reveal d1">Mean absolute error · lower is better</div>
+      <h2 class="reveal d2" style="font-size:64px;margin-bottom:30px;">Per-nutrient error</h2>
+      <table class="rtable reveal d3">
+        <thead><tr><th>Nutrient</th><th>Base</th><th>Food101</th><th class="colwin">Nutrition5k</th></tr></thead>
+        <tbody>
+          <tr><td class="rowlabel">Calories (kcal)</td><td>123.8</td><td>142.4</td><td class="win colwin">81.4</td></tr>
+          <tr><td class="rowlabel">Protein (g)</td><td>10.9</td><td>12.0</td><td class="win colwin">8.5</td></tr>
+          <tr><td class="rowlabel">Carbs (g)</td><td>14.5</td><td>17.9</td><td class="win colwin">8.0</td></tr>
+          <tr><td class="rowlabel">Fat (g)</td><td>6.0</td><td>9.3</td><td class="win colwin">5.3</td></tr>
+        </tbody>
+      </table>
+      <p class="lead reveal d4" style="margin-top:34px;font-size:26px;">Carbohydrate error nearly <b>halved</b> vs. the base model — and Food101 is worse on <b>every</b> row.</p>
+    </div>
+    <div class="foot"><span>Nutrition Coach</span><span>09</span></div>
+  </section>
+
+  <!-- ============ 10 · THE SURPRISE ============ -->
+  <section class="slide">
+    <div class="ruler" data-ruler></div>
+    <div class="chrome"><span>04 — The Finding</span><span>Surprise</span></div>
+    <div class="body">
+      <div class="punch">
+        <div class="big reveal d1">Food101 fine-tuning was<br><span class="warn">worse than no fine-tuning.</span></div>
+        <div class="sub reveal d3">Training on fabricated class-average labels didn't just fail to help — it actively <b>degraded</b> accuracy below the un-tuned base model on all four nutrients.</div>
+      </div>
+    </div>
+    <div class="foot"><span>Nutrition Coach</span><span>10</span></div>
+  </section>
+
+  <!-- ============ 11 · WHY ============ -->
+  <section class="slide">
+    <div class="ruler" data-ruler></div>
+    <div class="chrome"><span>04 — The Finding</span><span>Mechanism</span></div>
+    <div class="body">
+      <div class="cols" style="align-items:center;">
+        <div>
+          <div class="kicker reveal d1">Why it backfired</div>
+          <h2 class="reveal d2" style="font-size:72px;">Confident,<br><span class="warn">but wrong.</span></h2>
+          <p class="lead reveal d3">Forced into 101 buckets, the model collapses different dishes into a few classes — then emits each class's fixed average. It learns a confident mapping that ignores the actual plate.</p>
+        </div>
+        <div class="card reveal d4" style="border-color:#3a2a22;">
+          <span class="badge b-bad">Observed failure</span>
+          <div class="ct" style="color:var(--warn);">"grilled salmon" ×8</div>
+          <div class="cd">On the holdout, Food101 labelled <b style="color:var(--txt)">8 unrelated dishes</b> as grilled salmon — spanning <b style="color:var(--txt)">21 to 1116 kcal</b> — and assigned them all the same calorie average.</div>
+        </div>
+      </div>
+    </div>
+    <div class="foot"><span>Nutrition Coach</span><span>11</span></div>
+  </section>
+
+  <!-- ============ 12 · ENGINEERING ============ -->
+  <section class="slide">
+    <div class="ruler" data-ruler></div>
+    <div class="chrome"><span>05 — Engineering</span><span>War stories</span></div>
+    <div class="body">
+      <div class="kicker reveal d1">Things that broke (and the fixes)</div>
+      <ul class="blist">
+        <li class="reveal d2"><span class="n">01</span><span><b>MPS too slow</b> for training<span class="sub">Backward pass through the vision encoder stalled for hours on Apple Silicon → moved training to a Kaggle T4.</span></span></li>
+        <li class="reveal d3"><span class="n">02</span><span><b>bf16 GradScaler crash</b> on T4<span class="sub">Mixed-precision scaler couldn't unscale bf16 grads → disabled AMP; 4-bit base still computes in fp16 internally.</span></span></li>
+        <li class="reveal d4"><span class="n">03</span><span><b>Corrupted 3.7GB save</b> recovered<span class="sub">A wrong save path bundled the quantized base → wrote a safetensors tool to extract the clean 33MB LoRA adapter.</span></span></li>
+      </ul>
+    </div>
+    <div class="foot"><span>Nutrition Coach</span><span>12</span></div>
+  </section>
+
+  <!-- ============ 13 · TECH STACK ============ -->
+  <section class="slide">
+    <div class="ruler" data-ruler></div>
+    <div class="chrome"><span>05 — Engineering</span><span>Stack</span></div>
+    <div class="body">
+      <div class="kicker reveal d1">Built with</div>
+      <h2 class="reveal d2" style="margin-bottom:44px;">The toolchain</h2>
+      <div class="chips">
+        <div class="chip reveal d2"><b>PyTorch</b></div>
+        <div class="chip reveal d2">HuggingFace <b>Transformers</b></div>
+        <div class="chip reveal d3"><b>PEFT</b> / LoRA</div>
+        <div class="chip reveal d3"><b>TRL</b> SFTTrainer</div>
+        <div class="chip reveal d4">bitsandbytes <b>4-bit</b></div>
+        <div class="chip reveal d4"><b>Qwen3-VL-4B</b></div>
+        <div class="chip reveal d5">Kaggle <b>T4 GPU</b></div>
+        <div class="chip reveal d5">Apple <b>Silicon / MPS</b></div>
+      </div>
+      <p class="lead reveal d6" style="margin-top:48px;">Train on cloud GPU · ship a 33MB adapter · run inference anywhere.</p>
+    </div>
+    <div class="foot"><span>Nutrition Coach</span><span>13</span></div>
+  </section>
+
+  <!-- ============ 14 · TAKEAWAYS ============ -->
+  <section class="slide">
+    <div class="ruler" data-ruler></div>
+    <div class="chrome"><span>06 — Takeaways</span><span>What it means</span></div>
+    <div class="body">
+      <div class="kicker reveal d1">The lesson</div>
+      <ul class="blist">
+        <li class="reveal d2"><span class="n">→</span><span><b>Label quality beats model tweaks.</b><span class="sub">Real measured data cut calorie error ~34% vs. base; synthetic labels made it worse.</span></span></li>
+        <li class="reveal d3"><span class="n">→</span><span><b>A pretty loss curve can lie.</b><span class="sub">Food101's 0.04 loss was memorization; Nutrition5k's 0.41 plateau was the honest signal.</span></span></li>
+        <li class="reveal d4"><span class="n">→</span><span><b>Next: scale the real data.</b><span class="sub">Only 347 of 4,768 Nutrition5k dishes were used — more should push error lower still.</span></span></li>
+      </ul>
+    </div>
+    <div class="foot"><span>Nutrition Coach</span><span>14</span></div>
+  </section>
+
+  <!-- ============ 15 · CLOSING ============ -->
+  <section class="slide">
+    <div class="ruler" data-ruler></div>
+    <div class="chrome"><span>Nutrition Coach</span><span>Thank you</span></div>
+    <div class="body">
+      <div class="closing">
+        <div class="kicker reveal d1">Calorie estimation from a single photo</div>
+        <h2 class="reveal d2">Real data,<br><span class="hl">real estimates.</span></h2>
+        <div class="link reveal d4">github.com/deepaksinghcv/nutrition_coach</div>
+      </div>
+    </div>
+    <div class="foot"><span>PyTorch · PEFT · TRL · Qwen3-VL</span><span>15</span></div>
+  </section>
+
+</main>
+</div>
+
+<!-- progress + edit chrome -->
+<div class="deck-controls"><span id="pgnum">01 / 15</span><div class="bar"><i id="pgbar"></i></div></div>
+<div class="edit-hotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">✏️</button>
+
+<script>
+/* ===========================================
+   SLIDE CONTROLLER — nav + scaling
+   =========================================== */
+class Deck{
+  constructor(){
+    this.slides=[...document.querySelectorAll('.slide')];
+    this.i=0;
+    this.stage=document.getElementById('deckStage');
+    this.buildRulers();
+    this.scale();addEventListener('resize',()=>this.scale());
+    this.keys();this.touch();this.wheel();
+    this.show(0);
+  }
+  buildRulers(){ // fill each ruler with tick marks
+    this.slides.forEach(s=>{const r=s.querySelector('[data-ruler]');if(!r)return;
+      for(let k=0;k<61;k++){const t=document.createElement('i');if(k%10===0)t.className='major';r.appendChild(t);}});
+  }
+  scale(){const f=Math.min(innerWidth/1920,innerHeight/1080);
+    this.stage.style.transform=`translate(${(innerWidth-1920*f)/2}px,${(innerHeight-1080*f)/2}px) scale(${f})`;}
+  show(n){this.i=Math.max(0,Math.min(n,this.slides.length-1));
+    this.slides.forEach((s,k)=>{s.classList.toggle('active',k===this.i);s.classList.toggle('visible',k===this.i);});
+    const num=String(this.i+1).padStart(2,'0'),tot=String(this.slides.length).padStart(2,'0');
+    document.getElementById('pgnum').textContent=`${num} / ${tot}`;
+    document.getElementById('pgbar').style.width=((this.i+1)/this.slides.length*100)+'%';}
+  next(){this.show(this.i+1);}prev(){this.show(this.i-1);}
+  keys(){addEventListener('keydown',e=>{
+    if(e.target.getAttribute&&e.target.getAttribute('contenteditable')==='true')return;
+    if(['ArrowRight','ArrowDown',' ','PageDown'].includes(e.key)){e.preventDefault();this.next();}
+    if(['ArrowLeft','ArrowUp','PageUp'].includes(e.key)){e.preventDefault();this.prev();}
+    if(e.key==='Home')this.show(0);if(e.key==='End')this.show(this.slides.length-1);});}
+  touch(){let x0=null;addEventListener('touchstart',e=>x0=e.touches[0].clientX,{passive:true});
+    addEventListener('touchend',e=>{if(x0===null)return;const dx=e.changedTouches[0].clientX-x0;
+      if(Math.abs(dx)>50){dx<0?this.next():this.prev();}x0=null;},{passive:true});}
+  wheel(){let lock=false;addEventListener('wheel',e=>{if(lock)return;
+    if(Math.abs(e.deltaY)<24)return;lock=true;e.deltaY>0?this.next():this.prev();
+    setTimeout(()=>lock=false,650);},{passive:true});}
+}
+const deck=new Deck();
+
+/* ===========================================
+   INLINE EDITING (hover top-left or press E)
+   =========================================== */
+const editor={isActive:false,
+  toggleEditMode(){this.isActive=!this.isActive;
+    const t=document.getElementById('editToggle');t.classList.toggle('active',this.isActive);
+    document.querySelectorAll('h1,h2,p,li,td,.ct,.cd,.pt,.pd,.big,.sub,.note,.lbl,.chip,.link')
+      .forEach(el=>el.setAttribute('contenteditable',this.isActive));
+    if(this.isActive)this.load();else this.save();},
+  save(){const data={};document.querySelectorAll('[contenteditable]').forEach((el,i)=>data[i]=el.innerHTML);
+    localStorage.setItem('nc_deck_edits',JSON.stringify(data));},
+  load(){const raw=localStorage.getItem('nc_deck_edits');if(!raw)return;const data=JSON.parse(raw);
+    document.querySelectorAll('[contenteditable]').forEach((el,i)=>{if(data[i]!==undefined)el.innerHTML=data[i];});}
+};
+document.getElementById('editToggle').addEventListener('click',()=>editor.toggleEditMode());
+const hz=document.querySelector('.edit-hotzone'),et=document.getElementById('editToggle');let ht=null;
+hz.addEventListener('mouseenter',()=>{clearTimeout(ht);et.classList.add('show');});
+hz.addEventListener('mouseleave',()=>{ht=setTimeout(()=>{if(!editor.isActive)et.classList.remove('show');},400);});
+et.addEventListener('mouseenter',()=>clearTimeout(ht));
+et.addEventListener('mouseleave',()=>{ht=setTimeout(()=>{if(!editor.isActive)et.classList.remove('show');},400);});
+hz.addEventListener('click',()=>editor.toggleEditMode());
+addEventListener('keydown',e=>{if((e.key==='e'||e.key==='E')&&!(e.target.getAttribute&&e.target.getAttribute('contenteditable')==='true'))editor.toggleEditMode();});
+/* persist edits live */
+document.addEventListener('input',e=>{if(e.target.getAttribute&&e.target.getAttribute('contenteditable')==='true')editor.save();});
+/* Ctrl+S saves */
+addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();editor.save();}});
+</script>
+</body>
+</html>
